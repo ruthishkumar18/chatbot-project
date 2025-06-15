@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Chatbot</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 250px;
+      background: #fff;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+    }
+
+    .chatbox {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #chatDisplay {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+    }
+
+    .input-row {
+      display: flex;
+      padding: 10px;
+      background: #eee;
+    }
+
+    #userInput {
+      flex: 1;
+      padding: 10px;
+      font-size: 1em;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    #sendBtn {
+      background: #0078d7;
+      color: #fff;
+      border: none;
+      padding: 0 20px;
+      margin-left: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .user-bubble {
+      background: #dcf8c6;
+      padding: 10px;
+      border-radius: 10px;
+      margin: 5px 0;
+      align-self: flex-end;
+      max-width: 70%;
+    }
+
+    .bot-bubble {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 10px;
+      margin: 5px 0;
+      align-self: flex-start;
+      max-width: 70%;
+    }
+
+    pre {
+      background: #f4f4f4;
+      padding: 5px;
+      overflow-x: auto;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    ul li {
+      padding: 5px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+
+    ul li:hover {
+      background: #f0f0f0;
+    }
+
+    button {
+      font-size: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <h3>Chat History</h3>
+      <ul id="historyList"></ul>
+      <button onclick="resetHistory()">Clear History</button>
+    </div>
+    <div class="chatbox">
+      <div id="chatDisplay"></div>
+      <div class="input-row">
+        <input type="text" id="userInput" placeholder="Ask me anything...">
+        <button id="sendBtn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chatDisplay = document.getElementById("chatDisplay");
+    const userInput = document.getElementById("userInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const historyList = document.getElementById("historyList");
+
+    sendBtn.onclick = sendMessage;
+    userInput.addEventListener("keypress", e => { if (e.key === "Enter") sendMessage(); });
+
+    function sendMessage() {
+      const msg = userInput.value.trim();
+      if (!msg) return;
+
+      appendBubble("user", msg);
+      appendTyping();
+
+      fetch("/get", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ msg: msg })
+      })
+      .then(res => res.json())
+      .then(data => {
+        removeTyping();
+        appendBubble("bot", data.reply);
+        loadHistoryList();
+      });
+
+      userInput.value = "";
+      userInput.focus();
+    }
+
+    function appendBubble(role, text) {
+      const bubble = document.createElement("div");
+      bubble.className = role + "-bubble";
+      bubble.innerHTML = (role === "user" ? "<b>You:</b> " : "<b>Bot:</b> ") + text;
+      chatDisplay.appendChild(bubble);
+      chatDisplay.scrollTop = chatDisplay.scrollHeight;
+    }
+
+    function appendTyping() {
+      const typing = document.createElement("div");
+      typing.id = "typing";
+      typing.className = "bot-bubble";
+      typing.innerHTML = "<i>Bot is typing...</i>";
+      chatDisplay.appendChild(typing);
+    }
+
+    function removeTyping() {
+      const typing = document.getElementById("typing");
+      if (typing) typing.remove();
+    }
+
+    function loadHistoryList() {
+      fetch("/history")
+      .then(res => res.json())
+      .then(history => {
+        historyList.innerHTML = "";
+        history.forEach((item, idx) => {
+          if (item.role === "user") {
+            const li = document.createElement("li");
+            li.textContent = item.content.substring(0, 30) + "...";
+            li.onclick = () => reloadChat(idx);
+            historyList.appendChild(li);
+          }
+        });
+      });
+    }
+
+    function reloadChat(index) {
+      fetch("/history")
+      .then(res => res.json())
+      .then(history => {
+        chatDisplay.innerHTML = "";
+        for (let i = 0; i <= index * 2 + 1; i++) {
+          if (history[i].role === "user") appendBubble("user", history[i].content);
+          if (history[i].role === "assistant") appendBubble("bot", history[i].content);
+        }
+      });
+    }
+
+    function resetHistory() {
+      fetch("/reset", { method: "POST" })
+      .then(() => {
+        chatDisplay.innerHTML = "";
+        historyList.innerHTML = "";
+      });
+    }
+
+    window.onload = loadHistoryList;
+  </script>
+</body>
+</html>
