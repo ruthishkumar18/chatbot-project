@@ -11,9 +11,8 @@ if not app.secret_key:
 API_KEY = os.getenv("API_KEY")
 if not API_KEY:
     raise RuntimeError("API_KEY missing. Set it in environment for OpenRouter!")
-    
-API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Initialize DB
 def init_db():
@@ -35,14 +34,13 @@ def init_db():
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         """)
-
 init_db()
 
 # Query OpenRouter
 def query_openrouter(user_message):
     if not API_KEY:
         return "⚠ API key not configured. Please check server environment variables."
-    
+
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
@@ -55,9 +53,11 @@ def query_openrouter(user_message):
                 "role": "system",
                 "content": (
                     "You are a friendly and professional AI assistant. "
-                    "Your answers are cleanly formatted using HTML. "
-                    "Use bullet points, numbered lists, <pre><code> for code, "
-                    "<h3>, <h4> for headings, and <table> where appropriate."
+                    "Format your response using clean, readable HTML. "
+                    "Use <p> for paragraphs, <ul><li> or <ol><li> for lists, "
+                    "<h3>/<h4> for headings, <pre><code> for code, and <table> if needed. "
+                    "Ensure answers are well-organized, like ChatGPT style, "
+                    "with separate sections and bullet points where appropriate."
                 )
             },
             {"role": "user", "content": user_message}
@@ -122,7 +122,7 @@ def chat():
 def get_reply():
     if "user_id" not in session:
         return jsonify({"reply": "Unauthorized. Please log in."})
-    
+
     user_msg = request.json.get("msg", "").strip()
     if not user_msg:
         return jsonify({"reply": "Please enter a valid message."})
@@ -143,5 +143,5 @@ def logout():
     return redirect(url_for("login"))
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))  # Render sets this env var
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
