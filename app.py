@@ -4,9 +4,9 @@ import requests
 import os
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"  # Replace with strong key in production
+app.secret_key = "your_secret_key"  
 
-API_KEY = "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"
+API_KEY = os.getenv("API_KEY")
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # ----- DB Setup -----
@@ -162,4 +162,5 @@ def logout():
     return redirect(url_for("login"))
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  
+    app.run(host="0.0.0.0", port=port, debug=False)
