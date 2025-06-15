@@ -4,32 +4,39 @@ import requests
 import os
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"  
+app.secret_key = os.getenv("SECRET_KEY", "your_secret_key")
 
 API_KEY = os.getenv("API_KEY")
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-# ----- DB Setup -----
+# Initialize DB
 def init_db():
     with sqlite3.connect("chatbot.db") as conn:
         c = conn.cursor()
-        c.execute("""CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        username TEXT UNIQUE,
-                        password TEXT
-                    )""")
-        c.execute("""CREATE TABLE IF NOT EXISTS history (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        message TEXT,
-                        reply TEXT,
-                        FOREIGN KEY(user_id) REFERENCES users(id)
-                    )""")
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                message TEXT,
+                reply TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        """)
 
 init_db()
 
-# ----- Chatbot Query -----
+# Query OpenRouter
 def query_openrouter(user_message):
+    if not API_KEY:
+        return "⚠ API key not configured. Please check server environment variables."
+    
     headers = {
         "Authorization": f"Bearer {API_KEY}",
         "Content-Type": "application/json"
@@ -38,62 +45,31 @@ def query_openrouter(user_message):
     payload = {
         "model": "meta-llama/llama-3-70b-instruct",
         "messages": [
-            {"role": "system",
-             "content": (
-                 "You are an advanced AI assistant, acting as a highly skilled tutor, programmer, and explainer — similar to ChatGPT advanced version.\n"
-                 "\nYour goals:\n"
-                 "- Provide detailed, clear, and human-like answers.\n"
-                 "- Always organize content neatly with appropriate HTML structure.\n"
-                 "- Include bullet points (•), numbered lists (1., 2.), and tables where needed.\n"
-                 "- Use <h3>, <h4> for headings.\n"
-                 "- Present code with proper indentation in <pre><code> blocks (no broken formatting or paragraphs for code).\n"
-                 "- Do not use markdown syntax like **, *, ``` or # — only proper HTML tags.\n"
-                 "- Separate ideas in distinct <p> paragraphs.\n"
-                 "- Always format output so it looks clean in a web chat interface.\n"
-                 "\nCode output:\n"
-                 "- For code, wrap in <pre><code> and keep indentation intact.\n"
-                 "- Show syntax exactly as it should be written.\n"
-                 "- For long code, split into logical sections if needed.\n"
-                 "\nOther output:\n"
-                 "- For step-by-step guides, use numbered lists.\n"
-                 "- Wrap outputs in <div class='output'>...</div>.\n"
-                 "- For definitions, use <strong> for key terms.\n"
-                 "- For important notes, prefix with ⚠ or ✅.\n"
-                 "- When giving examples, clearly separate input and output.\n"
-                 "\nFeatures:\n"
-                 "- You can answer programming questions in any language (Python, JavaScript, C++, etc.).\n"
-                 "- You can provide calculations, logic explanation, and diagram descriptions.\n"
-                 "- You can summarize, explain concepts in depth, or provide quick answers as needed.\n"
-                 "- You can generate tables using HTML <table>, <tr>, <td> tags.\n"
-                 "- When showing JSON, XML, YAML or other structured data, format cleanly in <pre><code>.\n"
-                 "- You will never break formatting into paragraphs for code — code should appear cleanly.\n"
-                 "\nInteraction tone:\n"
-                 "- Be friendly, supportive, and professional.\n"
-                 "- Be friendly, supportive, and professional.\n"
-                 "\nLimitations:\n"
-                 "- Never return markdown syntax (like **bold**, ```code```, etc.).\n"
-                 "- Never include raw HTML entities (e.g., &lt;, &gt;) inside code blocks — render as real < and >.\n"
-                 "\nEnsure:\n"
-                 "- Every reply is clean, well-structured, and easy to read in a web chat UI.\n"
-                 "- Make the reply look clean for a chat window.\n"
-                 "- Every code block looks correct in indentation and spacing, just like ChatGPT would provide."
-                 )
-             },
+            {
+                "role": "system",
+                "content": (
+                    "You are a friendly and professional AI assistant. "
+                    "Your answers are cleanly formatted using HTML. "
+                    "Use bullet points, numbered lists, <pre><code> for code, "
+                    "<h3>, <h4> for headings, and <table> where appropriate."
+                )
+            },
             {"role": "user", "content": user_message}
         ],
-        "max_tokens": 6000,
+        "max_tokens": 3000,
         "temperature": 0.6,
         "top_p": 1
     }
 
     response = requests.post(API_URL, headers=headers, json=payload)
+    
     if response.status_code == 200:
         data = response.json()
         return data["choices"][0]["message"]["content"].strip()
     else:
-        return f"Error: {response.status_code} - {response.text}"
+        return f"❌ Error {response.status_code}: {response.text}"
 
-# ----- Routes -----
+# Routes
 @app.route("/")
 def index():
     if "user_id" in session:
@@ -109,11 +85,10 @@ def login():
             c = conn.cursor()
             c.execute("SELECT id FROM users WHERE username=? AND password=?", (username, password))
             user = c.fetchone()
-            if user:
-                session["user_id"] = user[0]
-                return redirect(url_for("chat"))
-            else:
-                return "Invalid credentials. <a href='/login'>Try again</a>."
+        if user:
+            session["user_id"] = user[0]
+            return redirect(url_for("chat"))
+        return "Invalid credentials. <a href='/login'>Try again</a>."
     return render_template("login.html")
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -141,17 +116,17 @@ def chat():
 def get_reply():
     if "user_id" not in session:
         return jsonify({"reply": "Unauthorized. Please log in."})
-    user_id = session["user_id"]
+    
     user_msg = request.json.get("msg", "").strip()
     if not user_msg:
-        return jsonify({"reply": "Please enter a valid question."})
+        return jsonify({"reply": "Please enter a valid message."})
 
     bot_reply = query_openrouter(user_msg)
 
     with sqlite3.connect("chatbot.db") as conn:
         c = conn.cursor()
         c.execute("INSERT INTO history (user_id, message, reply) VALUES (?, ?, ?)",
-                  (user_id, user_msg, bot_reply))
+                  (session["user_id"], user_msg, bot_reply))
         conn.commit()
 
     return jsonify({"reply": bot_reply})
@@ -162,6 +137,5 @@ def logout():
     return redirect(url_for("login"))
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 10000))  # Render sets this env var
     app.run(host="0.0.0.0", port=port)
-
