@@ -4,10 +4,16 @@ import requests
 import os
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "your_secret_key")
+app.secret_key = os.getenv("SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY missing. Set it in environment for security!")
 
 API_KEY = os.getenv("API_KEY")
+if not API_KEY:
+    raise RuntimeError("API_KEY missing. Set it in environment for OpenRouter!")
+    
 API_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 
 # Initialize DB
 def init_db():
