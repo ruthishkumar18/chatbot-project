@@ -4,7 +4,7 @@ import requests
 import os
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY")
+app.secret_key = os.getenv("SECRET_KEY", "default-fallback-if-not-set")
 if not app.secret_key:
     raise RuntimeError("SECRET_KEY missing. Set it in environment for security!")
 
