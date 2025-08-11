@@ -95,10 +95,10 @@ gunicorn app:app --bind 0.0.0.0:$PORT
 
 ## 📸 Screenshots
 ### Login Page
-![Login](screenshots/chat.jpg)
+![Login](screenshots/login.jpg)
 
 ### Chat Interface
-![Chat](https://via.placeholder.com/600x300?text=Chat+Interface)
+![Chat](screenshots/chat.jpg)
 
 ---
 
