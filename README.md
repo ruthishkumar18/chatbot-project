@@ -1,4 +1,3 @@
-
 # Real-Time AI Chatbot using OpenRouter API
 
 This is a real-time AI chatbot built with **Flask**, **SQLite**, and the **OpenRouter API**.  
